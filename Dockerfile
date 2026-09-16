@@ -1,10 +1,14 @@
 FROM python:3.11-slim
 
-# Install system dependencies (ffmpeg is required for cutting, reframing & captions)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install system dependencies (ffmpeg, git, and nodejs for yt-dlp challenge solving)
+RUN apt-get update && apt-get install -y --no-install-commends \
     ffmpeg \
     git \
+    nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+# Set up system-wide yt-dlp configuration for Node.js and EJS
+RUN echo "js-runtimes node\nremote-components ejs:github" > /etc/yt-dlp.conf
 
 WORKDIR /app
 

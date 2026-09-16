@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 
 # Install system dependencies (ffmpeg, git, and nodejs for yt-dlp challenge solving)
-RUN apt-get update && apt-get install -y --no-install-commends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     git \
     nodejs \

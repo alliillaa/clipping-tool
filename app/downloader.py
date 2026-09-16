@@ -132,7 +132,7 @@ def download_video(
         "quiet": True,
         "no_warnings": True,
         "ignoreerrors": False,
-        "js_runtimes": ["node"],
+        "js_runtimes": {"node": {}},
         "remote_components": ["ejs:github"],
     }
     if progress_hook is not None:

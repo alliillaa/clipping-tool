@@ -95,20 +95,22 @@ def _download_attempts(base_opts: dict) -> list[tuple[str, dict]]:
 
 
 def _clean_ydl_error(raw: str) -> str:
-    """Turn a raw yt-dlp DownloadError string into one short, readable line.
-
-    yt-dlp prefixes messages with ``ERROR:`` (sometimes coloured) and can append
-    a hint about reporting bugs — we drop both and keep just the real reason so
-    the UI can show *why* a video failed (private, age-gated, geo-blocked, etc.).
-    """
-    text = _ANSI_RE.sub("", raw or "").strip()
-    # Keep only the first line — that's the human reason.
-    line = text.splitlines()[0] if text else ""
-    line = re.sub(r"^ERROR:\s*", "", line).strip()
-    # Drop yt-dlp's "; please report this issue …" tail and extractor prefixes.
-    line = re.split(r";\s*(please report|you might want)", line, maxsplit=1)[0].strip()
-    line = re.sub(r"^\[[^\]]+\]\s*[^:]*:\s*", "", line)  # e.g. "[youtube] ID: "
-    return line[:300]
+base_opts = {
+        # Prefer the best stream up to 1080p
+        "format": (
+            "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
+        ),
+        "merge_output_format": "mp4",
+        "outtmpl": out_template,
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+        # Be resilient: keep going if a single fragment hiccups.
+        "ignoreerrors": False,
+        # Node.js JS runtime challenge solver
+        "js_runtimes": ["node"],
+        "remote_components": ["ejs:github"],
+    }
 
 
 def download_video(

@@ -6,3 +6,4 @@ yt-dlp
 faster-whisper
 requests
 indic-transliteration
+httpx[socks]

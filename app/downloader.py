@@ -27,7 +27,7 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 # Browsers we'll borrow cookies from (in order) when YouTube throws up a
 # sign-in / "confirm you're not a bot" wall. Override with env vars below.
 _DEFAULT_BROWSERS = ["chrome", "edge", "brave", "firefox", "opera", "vivaldi"]
-_COOKIE_FILE_ENV = "CLIPFORGE_COOKIES_FILE"       # path to a cookies.txt
+_COOKIE_FILE_ENV = "CLIPFORGE_COOKIES_FILE"        # path to a cookies.txt
 _COOKIE_BROWSER_ENV = "CLIPFORGE_COOKIES_BROWSER"  # force one browser, e.g. "chrome"
 
 
@@ -95,52 +95,34 @@ def _download_attempts(base_opts: dict) -> list[tuple[str, dict]]:
 
 
 def _clean_ydl_error(raw: str) -> str:
-base_opts = {
-        # Prefer the best stream up to 1080p
-        "format": (
-            "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
-        ),
-        "merge_output_format": "mp4",
-        "outtmpl": out_template,
-        "noplaylist": True,
-        "quiet": True,
-        "no_warnings": True,
-        # Be resilient: keep going if a single fragment hiccups.
-        "ignoreerrors": False,
-        # Node.js JS runtime challenge solver
-        "js_runtimes": ["node"],
-        "remote_components": ["ejs:github"],
-    }
+    """Turn a raw yt-dlp DownloadError string into one short, readable line.
+
+    yt-dlp prefixes messages with ``ERROR:`` (sometimes coloured) and can append
+    a hint about reporting bugs — we drop both and keep just the real reason so
+    the UI can show *why* a video failed (private, age-gated, geo-blocked, etc.).
+    """
+    text = _ANSI_RE.sub("", raw or "").strip()
+    # Keep only the first line — that's the human reason.
+    line = text.splitlines()[0] if text else ""
+    line = re.sub(r"^ERROR:\s*", "", line).strip()
+    # Drop yt-dlp's "; please report this issue …" tail and extractor prefixes.
+    line = re.split(r";\s*(please report|you might want)", line, maxsplit=1)[0].strip()
+    line = re.sub(r"^\[[^\]]+\]\s*[^:]*:\s*", "", line)  # e.g. "[youtube] ID: "
+    return line[:300]
 
 
 def download_video(
     url: str, progress_hook: Optional[Callable[[dict], None]] = None
 ) -> Path:
-    """Download `url` to downloads/<uuid>.mp4 and return the file path.
-
-    Args:
-        url: source video URL.
-        progress_hook: optional yt-dlp progress callback (receives the raw
-            progress dict with ``status``/``downloaded_bytes``/``total_bytes``)
-            so callers can surface live download progress.
-
-    Raises:
-        InvalidVideoURLError: on any download failure, with a readable message.
-    """
+    """Download `url` to downloads/<uuid>.mp4 and return the file path."""
     if not url or not url.strip():
         raise InvalidVideoURLError("No video URL was provided.")
 
     clip_uuid = uuid.uuid4().hex
-    # yt-dlp fills in the real extension; we force a merge to mp4 below so the
-    # final file is downloads/<uuid>.mp4.
     out_template = str(DOWNLOADS_DIR / f"{clip_uuid}.%(ext)s")
     expected_path = DOWNLOADS_DIR / f"{clip_uuid}.mp4"
 
     base_opts = {
-        # Prefer the best stream up to 1080p (plenty for shorts, avoids slow 4K
-        # downloads). Container is normalised to mp4 by merge_output_format, so
-        # we don't restrict by extension - that was too strict and could fall
-        # back to a tiny stream when no progressive mp4 existed.
         "format": (
             "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
         ),
@@ -149,15 +131,13 @@ def download_video(
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
-        # Be resilient: keep going if a single fragment hiccups.
         "ignoreerrors": False,
+        "js_runtimes": ["node"],
+        "remote_components": ["ejs:github"],
     }
     if progress_hook is not None:
         base_opts["progress_hooks"] = [progress_hook]
 
-    # Try in order: explicit cookies (if set) → plain → browser cookies. We only
-    # fall through to the cookie-based attempts when the failure looks like a
-    # sign-in / bot wall, so public videos still download on the first (fast) try.
     last_reason = ""
     last_exc: Optional[Exception] = None
     ok = False
@@ -193,8 +173,6 @@ def download_video(
     if expected_path.exists():
         return expected_path
 
-    # Some sources may not produce exactly <uuid>.mp4 (e.g. a different
-    # container survived the merge). Fall back to any file with our uuid prefix.
     candidates = sorted(DOWNLOADS_DIR.glob(f"{clip_uuid}.*"))
     if candidates:
         return candidates[0]
